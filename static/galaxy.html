@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌌 Project Galaxy — Hybrid 2D/3D Spatial Graph Engine</title>
+
+  <!-- Local Three.js & OrbitControls (r128) -->
+  <script src="/static/vendor/three/three.min.js"></script>
+  <script src="/static/vendor/three/OrbitControls.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #030712;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    header {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 56px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #38bdf8 0%, #030712 100%);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
+      animation: pulse-glow 2s infinite alternate;
+    }
+
+    @keyframes pulse-glow {
+      0% { box-shadow: 0 0 8px rgba(56, 189, 248, 0.4); }
+      100% { box-shadow: 0 0 22px rgba(56, 189, 248, 0.9); }
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mode-switch-group {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      padding: 2px;
+      margin-right: 8px;
+    }
+
+    .mode-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active {
+      background: rgba(56, 189, 248, 0.25);
+      color: #08ebf1;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn {
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: #000;
+      border: none;
+    }
+
+    .btn-launch {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      border: none;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .controls-overlay {
+      position: absolute;
+      top: 76px; left: 20px;
+      z-index: 50;
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .search-input {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      outline: none;
+      width: 200px;
+    }
+
+    #inspector-drawer {
+      position: absolute;
+      top: 56px; right: -420px; bottom: 0;
+      width: 400px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      border-left: 1px solid rgba(56, 189, 248, 0.3);
+      z-index: 90;
+      padding: 20px;
+      transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow-y: auto;
+    }
+
+    #inspector-drawer.open { right: 0; }
+
+    .drawer-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    #canvas2d, #canvas3dContainer {
+      position: absolute;
+      top: 56px; bottom: 0; left: 0; right: 0;
+      width: 100vw;
+      height: calc(100vh - 56px);
+    }
+
+    #canvas2d { display: block; cursor: grab; }
+    #canvas2d.hovering { cursor: pointer !important; }
+    #canvas2d:active { cursor: grabbing; }
+
+    #canvas3dContainer { display: none; }
+
+    .legend {
+      position: absolute;
+      bottom: 20px; left: 20px;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      gap: 14px;
+      font-size: 11px;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    .layer-hud {
+      position: absolute;
+      bottom: 20px; right: 20px;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #94a3b8;
+      display: none;
+    }
+
+    .code-viewer-box {
+      background: #090d16;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      max-height: 280px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div>
+        <div class="brand-title">PROJECT GALAXY</div>
+        <div style="font-size:10px;color:#94a3b8">Hybrid 2D/3D Spatial Graph Engine & Live Code Inspector</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="mode-switch-group">
+        <button class="mode-btn active" id="btn2D" onclick="setMode('2d')">2D Canvas</button>
+        <button class="mode-btn" id="btn3D" onclick="setMode('3d')">3D Spatial</button>
+      </div>
+      <button class="btn" onclick="fetchProjection(true)">[+] Load 1,880+ AST Symbols</button>
+      <button class="btn" onclick="expandAll()">[+] Expand All</button>
+      <button class="btn" onclick="collapseAll()">[-] Collapse All</button>
+      <button class="btn" onclick="resetView()">🎯 Center View</button>
+      <button class="btn" onclick="fetchProjection(false)">↻ Re-Index</button>
+      <a href="/" class="btn btn-primary">👑 Raphael CC</a>
+    </div>
+  </header>
+
+  <div class="controls-overlay">
+    <input type="text" class="search-input" id="searchNode" placeholder="Find node or file..." oninput="highlightNode()">
+    <span style="font-size:11px;color:#94a3b8;align-self:center" id="graphStats">Loading graph...</span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#08ebf1"></div> Company</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Pillar</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Project</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> Agent</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Mission</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#cbd5e1"></div> File / Code</div>
+  </div>
+
+  <div class="layer-hud" id="layerHud">
+    🌌 <strong>3D Spatial Z-Layers:</strong><br>
+    Z +200: Agents & Tasks | Z +100: Pillars | Z 0: Projects<br>
+    Z -80: Apps & Services | Z -160: Code Files | Z -240: Databases
+  </div>
+
+  <!-- 2D Canvas -->
+  <canvas id="canvas2d"></canvas>
+
+  <!-- 3D Three.js Container -->
+  <div id="canvas3dContainer"></div>
+
+  <div id="inspector-drawer">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:10px;text-transform:uppercase;color:#38bdf8;font-weight:800" id="inspType">NODE DETAILS</div>
+      <button onclick="closeInspector()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div class="drawer-title" id="inspTitle">Select a node</div>
+    <div style="font-size:12px;color:#94a3b8;margin-top:12px" id="inspContent">Click any node in 2D/3D to inspect properties, launch subdomains, or view code files.</div>
+  </div>
+
+  <script>
+    let mode = '2d'; // '2d' or '3d'
+    const canvas2d = document.getElementById('canvas2d');
+    const ctx2d = canvas2d.getContext('2d');
+    const container3d = document.getElementById('canvas3dContainer');
+
+    let width = window.innerWidth;
+    let height = window.innerHeight - 56;
+
+    function resize() {
+      width = Math.max(window.innerWidth || 0, document.documentElement.clientWidth || 0, 800);
+      height = Math.max((window.innerHeight || 0) - 56, (document.documentElement.clientHeight || 0) - 56, 500);
+      canvas2d.width = width * (window.devicePixelRatio || 1);
+      canvas2d.height = height * (window.devicePixelRatio || 1);
+      if (ctx2d) {
+        ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+        ctx2d.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      }
+
+      if (renderer3d && camera3d) {
+        camera3d.aspect = width / height;
+        camera3d.updateProjectionMatrix();
+        renderer3d.setSize(width, height);
+      }
+    }
+    window.addEventListener('resize', resize);
+    window.addEventListener('focus', () => { resize(); fetchProjection(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { resize(); fetchProjection(); } });
+    try {
+      const observer = new ResizeObserver(() => resize());
+      observer.observe(document.body);
+    } catch(e) {}
+    resize();
+
+    // Shared State
+    let allNodes = [];
+    let allEdges = [];
+    let expandedNodeIds = new Set([
+      'company-root', 'p-tech', 'p-ops',
+      'proj-galaxy', 'proj-raphael', 'proj-altora-market',
+      'proj-altora-resto', 'proj-shady-erp', 'proj-romebois',
+      'proj-nexterp', 'proj-firecrawl', 'proj-portfolio'
+    ]);
+    let selectedNode = null;
+
+    // 2D Camera
+    let zoom2d = 0.75;
+    let panX2d = width / 2;
+    let panY2d = height / 2;
+    let isDraggingCanvas2d = false;
+    let dragStartX2d = 0;
+    let dragStartY2d = 0;
+    let draggedNode2d = null;
+
+    // 3D Three.js State
+    let scene3d, camera3d, renderer3d, controls3d, raycaster3d, mouse3d;
+    let nodeMeshes3d = {};
+    let edgeLines3d = [];
+    let is3dInitialized = false;
+
+    const NODE_COLORS = {
+      company: 0x08ebf1,
+      pillar: 0x3b82f6,
+      project: 0x10b981,
+      mission: 0xf59e0b,
+      milestone: 0x84cc16,
+      agent: 0xec4899,
+      file: 0xcbd5e1,
+      service: 0xa855f7,
+      infrastructure: 0x6366f1,
+      database: 0x06b6d4
+    };
+
+    const NODE_RADII = {
+      company: 28, pillar: 22, project: 18, mission: 14,
+      milestone: 12, agent: 16, file: 12, service: 14,
+      infrastructure: 16, database: 14
+    };
+
+    const SPATIAL_Z_LAYERS = {
+      agent: 200, mission: 180, task: 160,
+      company: 100, pillar: 100,
+      project: 0,
+      service: -80, infrastructure: -120,
+      file: -160, database: -240
+    };
+
+    // Project Cluster Offsets (X, Y)
+    const PROJECT_CLUSTERS = {
+      "company-root": { x: 0, y: -450 },
+      "p-tech": { x: -350, y: -300 },
+      "p-ops": { x: 350, y: -300 },
+      "proj-galaxy": { x: -450, y: -100 },
+      "proj-raphael": { x: -150, y: -100 },
+      "proj-altora-market": { x: -450, y: 200 },
+      "proj-altora-resto": { x: -150, y: 200 },
+      "proj-shady-erp": { x: 150, y: 200 },
+      "proj-romebois": { x: 450, y: 200 },
+      "proj-nexterp": { x: 150, y: -100 },
+      "proj-firecrawl": { x: 450, y: -100 },
+      "proj-portfolio": { x: 0, y: 450 },
+      "vps-altora-new": { x: -300, y: 450 },
+      "vps-kantor-baru": { x: 300, y: 450 },
+      "vps-sumopod": { x: 0, y: -300 }
+    };
+
+    function setMode(newMode) {
+      mode = newMode;
+      document.getElementById('btn2D').classList.toggle('active', mode === '2d');
+      document.getElementById('btn3D').classList.toggle('active', mode === '3d');
+      
+      if (mode === '2d') {
+        canvas2d.style.display = 'block';
+        container3d.style.display = 'none';
+        document.getElementById('layerHud').style.display = 'none';
+      } else {
+        canvas2d.style.display = 'none';
+        container3d.style.display = 'block';
+        document.getElementById('layerHud').style.display = 'block';
+        if (!is3dInitialized) {
+          init3D();
+        }
+        rebuild3DScene();
+      }
+    }
+
+    async function fetchProjection(includeAst = false) {
+      const statsEl = document.getElementById('graphStats');
+      try {
+        if (statsEl) statsEl.innerText = includeAst ? "Loading 1,880+ AST symbols..." : "Loading graph...";
+        const url = (window.location.origin || '') + `/api/galaxy/projection?include_ast=${includeAst}&t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          if (statsEl) statsEl.innerText = `HTTP Error ${res.status}: ${res.statusText}`;
+          return;
+        }
+        const data = await res.json();
+        if (data && data.status === 'success') {
+          initGraphData(data.nodes || [], data.edges || []);
+        } else {
+          if (statsEl) statsEl.innerText = "Error: Invalid graph payload status";
+        }
+      } catch (err) {
+        console.error("Failed to fetch graph data:", err);
+        if (statsEl) statsEl.innerText = "Error: " + (err.message || err.toString());
+      }
+    }
+
+    function initGraphData(rawNodes, rawEdges) {
+      const posMap = {};
+      allNodes.forEach(n => { posMap[n.id] = { x: n.x, y: n.y, z: n.z, vx: n.vx, vy: n.vy }; });
+
+      rawNodes.forEach(n => {
+        expandedNodeIds.add(n.id);
+      });
+
+      if (!width || width <= 0 || !height || height <= 0) {
+        resize();
+      }
+      if (!panX2d || panX2d <= 0 || !panY2d || panY2d <= 0) {
+        panX2d = width / 2;
+        panY2d = height / 2;
+      }
+
+      allNodes = rawNodes.map((n, idx) => {
+        const prev = posMap[n.id] || {};
+        const cluster = PROJECT_CLUSTERS[n.project_id || n.id] || { 
+          x: Math.sin(idx * 0.5) * 350, 
+          y: Math.cos(idx * 0.5) * 350 
+        };
+        const randomX = (Math.random() - 0.5) * 140;
+        const randomY = (Math.random() - 0.5) * 140;
+        return {
+          ...n,
+          x: prev.x ?? (cluster.x + randomX),
+          y: prev.y ?? (cluster.y + randomY),
+          z: prev.z ?? (SPATIAL_Z_LAYERS[n.type] ?? 0),
+          vx: prev.vx ?? 0,
+          vy: prev.vy ?? 0,
+          radius: NODE_RADII[n.type] || 12,
+          colorHex: NODE_COLORS[n.type] || 0x38bdf8,
+          color: '#' + (NODE_COLORS[n.type] || 0x38bdf8).toString(16).padStart(6, '0'),
+          expanded: true
+        };
+      });
+
+      const nodeMap = {};
+      allNodes.forEach(n => nodeMap[n.id] = n);
+
+      allEdges = rawEdges.map(e => ({
+        ...e,
+        sourceNode: nodeMap[e.source],
+        targetNode: nodeMap[e.target]
+      })).filter(e => e.sourceNode && e.targetNode);
+
+      updateChildCounts();
+      if (mode === '3d' && is3dInitialized) {
+        rebuild3DScene();
+      }
+    }
+
+    function updateChildCounts() {
+      allNodes.forEach(n => {
+        const children = allEdges.filter(e => e.sourceNode === n);
+        n.childCount = children.length;
+      });
+    }
+
+    function getVisibleElements() {
+      const visibleNodeSet = new Set(['company-root', 'p-tech', 'p-ops']);
+      
+      allNodes.forEach(n => {
+        if (n.type === 'company' || n.type === 'pillar' || n.type === 'infrastructure') {
+          visibleNodeSet.add(n.id);
+        }
+      });
+
+      let added = true;
+      while (added) {
+        added = false;
+        allEdges.forEach(e => {
+          if (visibleNodeSet.has(e.source) && expandedNodeIds.has(e.source)) {
+            if (!visibleNodeSet.has(e.target)) {
+              visibleNodeSet.add(e.target);
+              added = true;
+            }
+          }
+        });
+      }
+
+      const visibleNodes = allNodes.filter(n => visibleNodeSet.has(n.id) && !isNaN(n.x) && !isNaN(n.y));
+      const visibleEdges = allEdges.filter(e => 
+        visibleNodeSet.has(e.source) && 
+        visibleNodeSet.has(e.target) && 
+        e.sourceNode && 
+        e.targetNode &&
+        !isNaN(e.sourceNode.x) && 
+        !isNaN(e.sourceNode.y) &&
+        !isNaN(e.targetNode.x) && 
+        !isNaN(e.targetNode.y)
+      );
+
+      return { visibleNodes, visibleEdges };
+    }
+
+    // ── 2D CANVAS ENGINE ──────────────────────────────────────────────────
+    function stepPhysics2D(vNodes, vEdges) {
+      const repulsion = 1200;
+      const springLength = 120;
+      const springStiffness = 0.04;
+      const damping = 0.85;
+
+      for (let i = 0; i < vNodes.length; i++) {
+        for (let j = i + 1; j < vNodes.length; j++) {
+          const n1 = vNodes[i];
+          const n2 = vNodes[j];
+          let dx = n2.x - n1.x;
+          let dy = n2.y - n1.y;
+          if (dx === 0 && dy === 0) {
+            dx = (Math.random() - 0.5) * 4;
+            dy = (Math.random() - 0.5) * 4;
+          }
+          let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist < 300) {
+            let force = (repulsion) / (dist * dist);
+            let fx = (dx / dist) * force;
+            let fy = (dy / dist) * force;
+            n1.vx -= fx;
+            n1.vy -= fy;
+            n2.vx += fx;
+            n2.vy += fy;
+          }
+        }
+      }
+
+      vEdges.forEach(e => {
+        const n1 = e.sourceNode;
+        const n2 = e.targetNode;
+        let dx = n2.x - n1.x;
+        let dy = n2.y - n1.y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        let force = (dist - springLength) * springStiffness;
+        let fx = (dx / dist) * force;
+        let fy = (dy / dist) * force;
+        n1.vx += fx;
+        n1.vy += fy;
+        n2.vx -= fx;
+        n2.vy -= fy;
+      });
+
+      vNodes.forEach(n => {
+        if (n !== draggedNode2d) {
+          n.vx *= damping;
+          n.vy *= damping;
+          n.x += n.vx;
+          n.y += n.vy;
+        }
+      });
+    }
+
+    let particleOffset = 0;
+
+    function render2D() {
+      if (mode !== '2d') return;
+
+      const { visibleNodes, visibleEdges } = getVisibleElements();
+      stepPhysics2D(visibleNodes, visibleEdges);
+      particleOffset = (particleOffset + 0.5) % 100;
+
+      document.getElementById('graphStats').innerText = `${visibleNodes.length} / ${allNodes.length} nodes visible · ${visibleEdges.length} links`;
+
+      ctx2d.clearRect(0, 0, width, height);
+
+      ctx2d.save();
+      ctx2d.translate(panX2d, panY2d);
+      ctx2d.scale(zoom2d, zoom2d);
+
+      // Render Edges
+      visibleEdges.forEach(e => {
+        const s = e.sourceNode;
+        const t = e.targetNode;
+        if (!s || !t || isNaN(s.x) || isNaN(s.y) || isNaN(t.x) || isNaN(t.y)) return;
+
+        ctx2d.beginPath();
+        ctx2d.moveTo(s.x, s.y);
+        ctx2d.lineTo(t.x, t.y);
+        ctx2d.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx2d.lineWidth = 1.5;
+        ctx2d.stroke();
+
+        let midX = (s.x + t.x) / 2;
+        let midY = (s.y + t.y) / 2;
+        ctx2d.font = '9px monospace';
+        ctx2d.fillStyle = 'rgba(148, 163, 184, 0.6)';
+        ctx2d.textAlign = 'center';
+        ctx2d.fillText(e.type, midX, midY - 3);
+
+        let pRatio = (particleOffset / 100);
+        let px = s.x + (t.x - s.x) * pRatio;
+        let py = s.y + (t.y - s.y) * pRatio;
+        ctx2d.beginPath();
+        ctx2d.arc(px, py, 2.5, 0, Math.PI * 2);
+        ctx2d.fillStyle = '#08ebf1';
+        ctx2d.shadowColor = '#08ebf1';
+        ctx2d.shadowBlur = 8;
+        ctx2d.fill();
+        ctx2d.shadowBlur = 0;
+      });
+
+      // Render Nodes
+      visibleNodes.forEach(n => {
+        const isSelected = selectedNode === n;
+        const isExpanded = expandedNodeIds.has(n.id);
+        const hasChildren = n.childCount > 0 || n.is_dir;
+
+        // Node Glow
+        ctx2d.beginPath();
+        ctx2d.arc(n.x, n.y, n.radius + (isSelected ? 6 : 2), 0, Math.PI * 2);
+        ctx2d.fillStyle = n.color;
+        ctx2d.shadowColor = n.color;
+        ctx2d.shadowBlur = isSelected ? 20 : 12;
+        ctx2d.globalAlpha = isSelected ? 0.9 : 0.4;
+        ctx2d.fill();
+
+        // Inner Circle
+        ctx2d.beginPath();
+        ctx2d.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+        ctx2d.fillStyle = '#0f172a';
+        ctx2d.shadowBlur = 0;
+        ctx2d.globalAlpha = 1.0;
+        ctx2d.fill();
+        ctx2d.strokeStyle = n.color;
+        ctx2d.lineWidth = isSelected ? 3 : 2;
+        ctx2d.stroke();
+
+        // Expand / Collapse Badge [+ / -]
+        if (hasChildren) {
+          ctx2d.beginPath();
+          ctx2d.arc(n.x + n.radius * 0.7, n.y - n.radius * 0.7, 7, 0, Math.PI * 2);
+          ctx2d.fillStyle = isExpanded ? '#38bdf8' : '#10b981';
+          ctx2d.fill();
+          ctx2d.font = 'bold 9px system-ui';
+          ctx2d.fillStyle = '#000';
+          ctx2d.textAlign = 'center';
+          ctx2d.fillText(isExpanded ? '-' : '+', n.x + n.radius * 0.7, n.y - n.radius * 0.7 + 3);
+        }
+
+        // Node Label
+        ctx2d.font = `${isSelected ? 'bold 12px' : '11px'} system-ui, sans-serif`;
+        ctx2d.fillStyle = isSelected ? '#ffffff' : '#e2e8f0';
+        ctx2d.textAlign = 'center';
+        ctx2d.fillText(n.label, n.x, n.y + n.radius + 14);
+
+        // Node Type Badge & Child Count
+        ctx2d.font = '9px uppercase system-ui';
+        ctx2d.fillStyle = n.color;
+        let badgeText = n.type.toUpperCase();
+        if (hasChildren) {
+          badgeText += ` (${n.childCount || ''} ${isExpanded ? '▼' : '►'})`;
+        }
+        ctx2d.fillText(badgeText, n.x, n.y + n.radius + 25);
+      });
+
+      ctx2d.restore();
+    }
+
+    // ── 3D THREE.JS SPATIAL ENGINE ───────────────────────────────────────
+    function init3D() {
+      if (is3dInitialized) return;
+      try {
+        if (typeof THREE === 'undefined') {
+          console.warn("[Galaxy3D] Three.js library not loaded yet.");
+          return;
+        }
+
+        scene3d = new THREE.Scene();
+        scene3d.fog = new THREE.FogExp2(0x030712, 0.0008);
+
+        camera3d = new THREE.PerspectiveCamera(60, width / height, 1, 5000);
+        camera3d.position.set(0, -600, 700);
+
+        renderer3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer3d.setSize(width, height);
+        renderer3d.setPixelRatio(window.devicePixelRatio);
+        container3d.appendChild(renderer3d.domElement);
+
+        if (typeof THREE.OrbitControls !== 'undefined') {
+          controls3d = new THREE.OrbitControls(camera3d, renderer3d.domElement);
+          controls3d.enableDamping = true;
+          controls3d.dampingFactor = 0.05;
+        }
+
+        raycaster3d = new THREE.Raycaster();
+        mouse3d = new THREE.Vector2();
+
+        // Ambient Lights & Starfield Dust
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene3d.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0x38bdf8, 2, 2000);
+        pointLight.position.set(0, 0, 300);
+        scene3d.add(pointLight);
+
+        // Starfield Particle Dust
+        const starGeo = new THREE.BufferGeometry();
+        const starCoords = [];
+        for (let i = 0; i < 1500; i++) {
+          starCoords.push(
+            (Math.random() - 0.5) * 3000,
+            (Math.random() - 0.5) * 3000,
+            (Math.random() - 0.5) * 2000
+          );
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starCoords, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0x38bdf8, size: 2, transparent: true, opacity: 0.4 });
+        scene3d.add(new THREE.Points(starGeo, starMat));
+
+        renderer3d.domElement.addEventListener('click', on3DClick);
+        is3dInitialized = true;
+      } catch (err) {
+        console.error("[Galaxy3D] Error initializing 3D WebGL context:", err);
+      }
+    }
+
+    function rebuild3DScene() {
+      if (!is3dInitialized) return;
+
+      // Clear existing 3D meshes & lines
+      Object.values(nodeMeshes3d).forEach(m => scene3d.remove(m));
+      edgeLines3d.forEach(l => scene3d.remove(l));
+      nodeMeshes3d = {};
+      edgeLines3d = [];
+
+      const { visibleNodes, visibleEdges } = getVisibleElements();
+
+      // Create 3D Sphere Meshes for Nodes
+      visibleNodes.forEach(n => {
+        const radius = n.radius * 0.8;
+        const geo = new THREE.SphereGeometry(radius, 16, 16);
+        const mat = new THREE.MeshStandardMaterial({
+          color: n.colorHex,
+          emissive: n.colorHex,
+          emissiveIntensity: selectedNode === n ? 0.8 : 0.3,
+          roughness: 0.2,
+          metalness: 0.5
+        });
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(n.x, n.y, n.z);
+        mesh.userData = n;
+        scene3d.add(mesh);
+        nodeMeshes3d[n.id] = mesh;
+      });
+
+      // Create 3D Lines for Edges
+      visibleEdges.forEach(e => {
+        const sMesh = nodeMeshes3d[e.source];
+        const tMesh = nodeMeshes3d[e.target];
+        if (sMesh && tMesh) {
+          const points = [sMesh.position, tMesh.position];
+          const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+          const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 });
+          const line = new THREE.Line(lineGeo, lineMat);
+          scene3d.add(line);
+          edgeLines3d.push(line);
+        }
+      });
+    }
+
+    function on3DClick(event) {
+      if (mode !== '3d') return;
+      mouse3d.x = (event.clientX / width) * 2 - 1;
+      mouse3d.y = -( (event.clientY - 56) / height) * 2 + 1;
+
+      raycaster3d.setFromCamera(mouse3d, camera3d);
+      const intersects = raycaster3d.intersectObjects(Object.values(nodeMeshes3d));
+
+      if (intersects.length > 0) {
+        const hitMesh = intersects[0].object;
+        const node = hitMesh.userData;
+        selectedNode = node;
+
+        if (node.is_dir && node.subpath && !node.loaded_dir) {
+          loadSubfolderFiles(node);
+        }
+
+        if (node.childCount > 0 || node.is_dir) {
+          toggleNodeExpand(node.id);
+        }
+
+        inspectNode(node);
+        rebuild3DScene();
+      }
+    }
+
+    // Animation Loop
+    function loop() {
+      try {
+        if (mode === '2d') {
+          render2D();
+        } else if (mode === '3d' && is3dInitialized) {
+          controls3d.update();
+          renderer3d.render(scene3d, camera3d);
+        }
+      } catch (err) {
+        console.error("[GalaxyLoop] Error in animation frame:", err);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    // Helpers & Controls
+    function toggleNodeExpand(nodeId) {
+      if (expandedNodeIds.has(nodeId)) {
+        expandedNodeIds.delete(nodeId);
+      } else {
+        expandedNodeIds.add(nodeId);
+      }
+      if (mode === '3d') rebuild3DScene();
+    }
+
+    function expandAll() {
+      allNodes.forEach(n => expandedNodeIds.add(n.id));
+      if (mode === '3d') rebuild3DScene();
+    }
+
+    function collapseAll() {
+      expandedNodeIds.clear();
+      expandedNodeIds.add('company-root');
+      expandedNodeIds.add('p-tech');
+      expandedNodeIds.add('p-ops');
+      if (mode === '3d') rebuild3DScene();
+    }
+
+    function resetView() {
+      resize();
+      zoom2d = 0.75;
+      panX2d = (width && width > 100) ? (width / 2) : (window.innerWidth / 2 || 400);
+      panY2d = (height && height > 100) ? (height / 2) : ((window.innerHeight - 56) / 2 || 300);
+
+      if (mode === '3d' && controls3d) {
+        camera3d.position.set(0, -600, 700);
+        controls3d.target.set(0, 0, 0);
+        controls3d.update();
+      }
+    }
+
+    window.addEventListener('message', (e) => {
+      if (e.data === 'resize' || e.data === 'refresh') {
+        resetView();
+        fetchProjection();
+      }
+    });
+
+    async function inspectNode(n) {
+      document.getElementById('inspType').innerText = n.type.toUpperCase();
+      document.getElementById('inspTitle').innerText = n.label;
+
+      const isExpanded = expandedNodeIds.has(n.id);
+      const rels = allEdges.filter(e => e.sourceNode === n || e.targetNode === n);
+      let relHtml = rels.map(e => `<div style="font-family:monospace;font-size:11px;color:#cbd5e1;margin-top:4px">${e.sourceNode.label} ──[${e.type}]──> ${e.targetNode.label}</div>`).join('');
+
+      let actionButtons = '';
+      if (n.childCount > 0 || n.is_dir) {
+        actionButtons += `<button onclick="toggleNodeExpand('${n.id}')" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center">${isExpanded ? '[-] Collapse Branch' : '[+] Expand Child Nodes / Files'}</button>`;
+      }
+
+      if (n.url) {
+        actionButtons += `<a href="${n.url}" target="_blank" class="btn btn-launch" style="margin-top:8px;display:inline-block;text-align:center;width:100%;text-decoration:none">🚀 Launch Live App (${n.url})</a>`;
+      }
+
+      if (n.type === 'infrastructure' || n.id === 'vps-kantor-baru') {
+        actionButtons += `<a href="/#panelNovnc" target="_blank" class="btn btn-primary" style="margin-top:8px;display:inline-block;text-align:center;width:100%">🖥️ Open Remote Desktop (noVNC)</a>`;
+      }
+
+      let codePreviewHtml = '';
+      if (n.type === 'file' && n.subpath && !n.is_dir) {
+        codePreviewHtml = `
+          <button onclick="loadFileContent('${n.project_id || 'proj-galaxy'}', '${n.subpath}')" class="btn btn-primary" style="margin-top:12px;width:100%;justify-content:center">📄 Inspect Code Content</button>
+          <div id="codePreviewArea"></div>
+        `;
+      }
+
+      document.getElementById('inspContent').innerHTML = `
+        <div style="font-size:12px;margin-bottom:8px">Status: <strong style="color:#10b981">${(n.status || 'active').toUpperCase()}</strong></div>
+        <div style="font-size:11px;color:#94a3b8;margin-bottom:12px">${n.details || 'Evidence-backed structural node'}</div>
+        ${actionButtons}
+        ${codePreviewHtml}
+        <div style="font-size:12px;font-weight:700;color:#fff;margin-top:16px;margin-bottom:6px">Connected Relationships (${rels.length}):</div>
+        ${relHtml || '<div style="font-size:11px;color:#64748b">No direct edges registered</div>'}
+      `;
+
+      document.getElementById('inspector-drawer').classList.add('open');
+    }
+
+    async function loadFileContent(projectId, subpath) {
+      const targetArea = document.getElementById('codePreviewArea');
+      if (!targetArea) return;
+      targetArea.innerHTML = '<div style="font-size:11px;color:#94a3b8;margin-top:12px">Loading file code content...</div>';
+
+      try {
+        const res = await fetch(`/api/galaxy/read_file?project_id=${projectId}&subpath=${encodeURIComponent(subpath)}`);
+        const data = await res.json();
+        if (data.status === 'success') {
+          const escapeHtml = str => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          targetArea.innerHTML = `
+            <div style="font-size:11px;color:#10b981;margin-top:12px;font-weight:700">File Preview (${data.size_kb} KB):</div>
+            <div class="code-viewer-box">${escapeHtml(data.content)}</div>
+          `;
+        } else {
+          targetArea.innerHTML = `<div style="font-size:11px;color:#ef4444;margin-top:12px">Error: ${data.message}</div>`;
+        }
+      } catch (err) {
+        targetArea.innerHTML = `<div style="font-size:11px;color:#ef4444;margin-top:12px">Failed to load code: ${err.message}</div>`;
+      }
+    }
+
+    function closeInspector() {
+      document.getElementById('inspector-drawer').classList.remove('open');
+    }
+
+    function highlightNode() {
+      const q = document.getElementById('searchNode').value.toLowerCase().trim();
+      if (!q) { selectedNode = null; return; }
+      const match = allNodes.find(n => n.label.toLowerCase().includes(q) || n.type.toLowerCase().includes(q));
+      if (match) {
+        selectedNode = match;
+        expandedNodeIds.add(match.id);
+        if (mode === '2d') {
+          panX2d = width / 2 - match.x * zoom2d;
+          panY2d = height / 2 - match.y * zoom2d;
+        } else if (mode === '3d' && controls3d) {
+          controls3d.target.set(match.x, match.y, match.z);
+          camera3d.position.set(match.x, match.y - 200, match.z + 200);
+          controls3d.update();
+          rebuild3DScene();
+        }
+        inspectNode(match);
+      }
+    }
+
+    // 2D Canvas Handlers
+    canvas2d.addEventListener('mousedown', (e) => {
+      if (mode !== '2d') return;
+      const pos = { x: (e.clientX - panX2d) / zoom2d, y: (e.clientY - 56 - panY2d) / zoom2d };
+      const { visibleNodes } = getVisibleElements();
+      let hit = visibleNodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) <= Math.max(n.radius + 14, 26));
+
+      if (hit) {
+        draggedNode2d = hit;
+        selectedNode = hit;
+        if (hit.childCount > 0 || hit.is_dir) toggleNodeExpand(hit.id);
+        inspectNode(hit);
+      } else {
+        isDraggingCanvas2d = true;
+        dragStartX2d = e.clientX - panX2d;
+        dragStartY2d = e.clientY - panY2d;
+      }
+    });
+
+    canvas2d.addEventListener('mousemove', (e) => {
+      if (mode !== '2d') return;
+      const pos = { x: (e.clientX - panX2d) / zoom2d, y: (e.clientY - 56 - panY2d) / zoom2d };
+      const { visibleNodes } = getVisibleElements();
+      let hit = visibleNodes.find(n => Math.hypot(n.x - pos.x, n.y - pos.y) <= Math.max(n.radius + 14, 26));
+      canvas2d.classList.toggle('hovering', !!hit);
+
+      if (draggedNode2d) {
+        draggedNode2d.x = pos.x;
+        draggedNode2d.y = pos.y;
+      } else if (isDraggingCanvas2d) {
+        panX2d = e.clientX - dragStartX2d;
+        panY2d = e.clientY - dragStartY2d;
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      draggedNode2d = null;
+      isDraggingCanvas2d = false;
+    });
+
+    canvas2d.addEventListener('wheel', (e) => {
+      if (mode !== '2d') return;
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+      zoom2d = Math.min(Math.max(0.3, zoom2d * zoomFactor), 3.0);
+    });
+
+    fetchProjection();
+    window.addEventListener('DOMContentLoaded', () => fetchProjection());
+    window.addEventListener('load', () => fetchProjection());
+    loop();
+  </script>
+</body>
+</html>
